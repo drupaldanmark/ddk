@@ -1,0 +1,6 @@
+Drupal Danmark modules
+======================
+
+A set of [Drupal](http://drupal.org/) modules for the Danish community
+website, [Drupal Danmark](http://drupaldanmark.dk/).
+
