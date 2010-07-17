@@ -1,3 +1,254 @@
 <?php
-
+// Load features.
 include_once('ddk_job.features.inc');
+
+/**
+ * @file
+ * Drupal core hook implementations.
+ */
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function ddk_job_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'job_node_form') {
+    if (isset($form['locations'][0]['#type'])) {
+      // Use our own version of the location element.
+      $form['locations'][0]['#type'] = 'ddk_job_location_element';
+    }
+  }
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function ddk_job_theme() {
+  return array(
+    'ddk_job_location_element' => array('arguments' => array('element')),
+  );
+}
+
+/**
+ * Theme function to fixup location elements.
+ * @ingroup themable
+ */
+function theme_ddk_job_location_element($element) {
+  // Prevent spurious "Array" from appearing.
+  unset($element['#value']);
+  return theme('fieldset', $element);
+}
+
+/**
+ * Implementation of hook_elements().
+ */
+function ddk_job_elements() {
+  return array(
+    'ddk_job_location_element' => array(
+      '#input' => TRUE,
+      '#process' => array('_ddk_job_location_expand_location_settings'),
+      '#tree' => TRUE,
+      '#location_settings' => array(),
+      '#required' => FALSE,
+      '#attributes' => array('class' => 'location'),
+      // Element level validation.
+      '#element_validate' => array('location_element_validate'),
+    ),
+  );
+}
+
+/**
+ * Process a location element.
+ * @see _location_expand_location_settings.
+ */
+function _ddk_job_location_expand_location_settings(&$element) {
+  drupal_add_css(drupal_get_path('module', 'location') .'/location.css');
+  $element['#tree'] = TRUE;
+  if (!isset($element['#title']) || $element['#title'] != t('Company')) {
+    $element['#title'] = t('Company');
+  }
+  if (empty($element['#location_settings'])) {
+    $element['#location_settings'] = array();
+  }
+  if (!isset($element['#default_value']) || $element['#default_value'] == 0) {
+    $element['#default_value'] = array();
+  }
+
+  $element['location_settings'] = array(
+    '#type' => 'value',
+    '#value' => $element['#location_settings'],
+  );
+
+  // Ensure this isn't accidentally used later.
+  unset($element['#location_settings']);
+
+  // Make a reference to the settings.
+  $settings =& $element['location_settings']['#value'];
+
+  if (isset($element['#default_value']['lid']) && $element['#default_value']['lid']) {
+    // Keep track of the old LID.
+    $element['lid'] = array(
+      '#type' => 'value',
+      '#value' => $element['#default_value']['lid'],
+    );
+  }
+
+  // Fill in missing defaults, etc.
+  location_normalize_settings($settings, $element['#required']);
+
+  $defaults = location_empty_location($settings);
+
+  if (isset($element['lid']['#value']) && $element['lid']['#value']) {
+    $defaults = location_load_location($element['lid']['#value']);
+  }
+
+  $fsettings =& $settings['form']['fields'];
+
+  // $settings -> $settings['form']['fields']
+
+  // $defaults is not necessarily what we want.
+  // If #default_value was already specified, we want to use that, because
+  // otherwise we will lose our values on preview!
+  $fdefaults = $defaults;
+  foreach ($element['#default_value'] as $k => $v) {
+    $fdefaults[$k] = $v;
+  }
+
+  $fields = location_field_names();
+  foreach ($fields as $field => $title) {
+    if (!isset($element[$field])) {
+      // @@@ Permission check hook?
+      if ($fsettings[$field]['collect'] != 0) {
+        $element[$field] = location_invoke_locationapi($fdefaults[$field], 'field_expand', $field, $fsettings[$field]['collect'], $fdefaults);
+        $element[$field]['#weight'] = (int)$fsettings[$field]['weight'];
+      }
+    }
+  }
+
+  // Only include 'Street Additional' if 'Street' is 'allowed' or 'required'
+  if (!isset($element['street'])) {
+    unset($element['additional']);
+  }
+
+  // @@@ Split into submit and view permissions?
+  if (user_access('submit latitude/longitude') && $fsettings['locpick']['collect']) {
+    $element['locpick'] = array('#weight' => $fsettings['locpick']['weight']);
+
+    if (location_has_coordinates($defaults, FALSE)) {
+      $element['locpick']['current'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Current coordinates'),
+        '#attributes' => array('class' => 'location-current-coordinates-fieldset'),
+      );
+      $element['locpick']['current']['current_latitude'] = array(
+        '#type' => 'item',
+        '#title' => t('Latitude'),
+        '#value' => $defaults['latitude'],
+      );
+      $element['locpick']['current']['current_longitude'] = array(
+        '#type' => 'item',
+        '#title' => t('Longitude'),
+        '#value' => $defaults['longitude'],
+      );
+      $source = t('Unknown');
+      switch($defaults['source']) {
+        case LOCATION_LATLON_USER_SUBMITTED:
+          $source = t('User-submitted');
+          break;
+        case LOCATION_LATLON_GEOCODED_APPROX:
+          $source = t('Geocoded (Postal code level)');
+          break;
+        case LOCATION_LATLON_GEOCODED_EXACT:
+          $source = t('Geocoded (Exact)');
+      }
+      $element['locpick']['current']['current_source'] = array(
+        '#type' => 'item',
+        '#title' => t('Source'),
+        '#value' => $source,
+      );
+    }
+
+    $element['locpick']['user_latitude'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Latitude'),
+      '#default_value' => isset($element['#default_value']['locpick']['user_latitude']) ? $element['#default_value']['locpick']['user_latitude'] : '',
+      '#size' => 16,
+      '#attributes' => array('class' => 'container-inline'),
+      '#maxlength' => 20,
+    );
+    $element['locpick']['user_longitude'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Longitude'),
+      '#default_value' => isset($element['#default_value']['locpick']['user_longitude']) ? $element['#default_value']['locpick']['user_longitude'] : '',
+      '#size' => 16,
+      '#maxlength' => 20,
+    );
+
+    $element['locpick']['instructions'] = array(
+      '#type' => 'markup',
+      '#weight' => 1,
+      '#prefix' => '<div class=\'description\'>',
+      '#value' => '<br /><br />' . t('If you wish to supply your own latitude and longitude, you may enter them above.  If you leave these fields blank, the system will attempt to determine a latitude and longitude for you from the entered address.  To have the system recalculate your location from the address, for example if you change the address, delete the values for these fields.'),
+      '#suffix' => '</div>',
+      );
+    if (function_exists('gmap_get_auto_mapid') && variable_get('location_usegmap', FALSE)) {
+      $mapid = gmap_get_auto_mapid();
+      $map = gmap_parse_macro(variable_get('location_locpick_macro', '[gmap]'));
+      $map['id'] = $mapid;
+      $map['points'] = array();
+      $map['pointsOverlays'] = array();
+      $map['lines'] = array();
+
+      $map['behavior']['locpick'] = TRUE;
+      $map['behavior']['collapsehack'] = TRUE;
+      // Use previous coordinates to center the map.
+      if (location_has_coordinates($defaults, FALSE)) {
+        $map['latitude'] = (float)$defaults['latitude'];
+        $map['longitude'] = (float)$defaults['longitude'];
+
+        $map['markers'][] = array(
+          'latitude' => $defaults['latitude'],
+          'longitude' => $defaults['longitude'],
+          'markername' => 'small gray', // @@@ Settable?
+          'offset' => 0,
+          'opts' => array(
+            'clickable' => FALSE,
+          ),
+        );
+      }
+      $element['locpick']['user_latitude']['#map'] = $mapid;
+      gmap_widget_setup($element['locpick']['user_latitude'], 'locpick_latitude');
+      $element['locpick']['user_longitude']['#map'] = $mapid;
+      gmap_widget_setup($element['locpick']['user_longitude'], 'locpick_longitude');
+
+      $element['locpick']['map'] = array(
+        '#type' => 'gmap',
+        '#weight' => -1,
+        '#map' => $mapid,
+        '#settings' => $map,
+      );
+      $element['locpick']['map_instructions'] = array(
+        '#type' => 'markup',
+        '#weight' => 2,
+        '#prefix' => '<div class=\'description\'>',
+        '#value' => t('You may set the location by clicking on the map, or dragging the location marker.  To clear the location and cause it to be recalculated, click on the marker.'),
+        '#suffix' => '</div>',
+      );
+    }
+  }
+
+  if (isset($defaults['lid']) && !empty($defaults['lid'])) {
+    $element['delete_location'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Delete'),
+      '#default_value' => isset($fdefaults['delete_location']) ? $fdefaults['delete_location'] : FALSE,
+      '#description' => t('Check this box to delete this location.'),
+    );
+  }
+  if (isset($element['name'])) {
+    $element['name']['#title'] = t('Company name');
+  }
+
+  $element += _element_info('fieldset');
+  return $element;
+}
+
