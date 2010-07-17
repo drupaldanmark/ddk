@@ -60,7 +60,7 @@ function _ddk_job_content_default_fields() {
       ),
       'default_value_php' => NULL,
       'label' => 'Kontakt e-mail',
-      'weight' => '36',
+      'weight' => '35',
       'description' => 'Skriv den e-mail-adresse jobansøgninger kan sendes til.',
       'type' => 'email_textfield',
       'module' => 'email',
@@ -217,7 +217,7 @@ function _ddk_job_content_default_fields() {
       'weight' => '35',
       'parent' => '',
       'label' => array(
-        'format' => 'above',
+        'format' => 'hidden',
       ),
       'teaser' => array(
         'format' => 'default',
@@ -277,7 +277,7 @@ function _ddk_job_content_default_fields() {
       ),
       'default_value_php' => NULL,
       'label' => 'Læs mere link',
-      'weight' => '35',
+      'weight' => '36',
       'description' => 'Angiv et link hvor man kan læse mere om jobopslaget. Er ikke påkrævet.',
       'type' => 'link',
       'module' => 'link',
