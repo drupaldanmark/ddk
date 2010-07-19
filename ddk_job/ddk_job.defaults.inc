@@ -385,41 +385,41 @@ function _ddk_job_strongarm() {
         'name' => array(
           'collect' => '2',
           'default' => '',
-          'weight' => '2',
+          'weight' => '-100',
         ),
         'street' => array(
           'collect' => '1',
           'default' => '',
-          'weight' => '4',
+          'weight' => '-99',
         ),
         'additional' => array(
           'collect' => '1',
           'default' => '',
-          'weight' => '6',
-        ),
-        'city' => array(
-          'collect' => '1',
-          'default' => '',
-          'weight' => '8',
-        ),
-        'province' => array(
-          'collect' => '0',
-          'default' => '',
-          'weight' => '10',
+          'weight' => '-98',
         ),
         'postal_code' => array(
           'collect' => '1',
           'default' => '',
-          'weight' => '12',
+          'weight' => '-97',
+        ),
+        'city' => array(
+          'collect' => '1',
+          'default' => '',
+          'weight' => '-96',
+        ),
+        'province' => array(
+          'collect' => '0',
+          'default' => '',
+          'weight' => '-95',
         ),
         'country' => array(
           'collect' => '1',
           'default' => 'dk',
-          'weight' => '14',
+          'weight' => '-94',
         ),
         'locpick' => array(
           'collect' => '0',
-          'weight' => '20',
+          'weight' => '-93',
         ),
       ),
     ),
